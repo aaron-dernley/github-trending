@@ -21,6 +21,7 @@ export interface MinimalLogger {
   warn(msg: string, props?: Record<string, unknown>): void;
 }
 
+/** One repo entry as GitHub's search API returns it. */
 export interface GitHubSearchItem {
   full_name: string;
   html_url: string;
@@ -30,6 +31,7 @@ export interface GitHubSearchItem {
   created_at: string;
 }
 
+/** The shape of GitHub's `/search/repositories` response we actually use. */
 export interface GitHubSearchResponse {
   total_count: number;
   items: GitHubSearchItem[];
