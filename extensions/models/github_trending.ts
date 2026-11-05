@@ -131,6 +131,49 @@ interface MethodContext {
     name: string,
     data: Record<string, unknown>,
   ) => Promise<{ name: string }>;
+  readResource: (
+    instanceName: string,
+    version?: number,
+  ) => Promise<Record<string, unknown> | null>;
+}
+
+/** Default textfile-collector path for `exportMetrics`. */
+const DEFAULT_PROM_PATH =
+  "/var/lib/prometheus/node-exporter/github-trending.prom";
+
+/** Escape a Prometheus label value: backslash, then double quote. */
+function promEscape(value: string): string {
+  return value.replaceAll("\\", "\\\\").replaceAll('"', '\\"');
+}
+
+/**
+ * Render a `trending` snapshot as Prometheus text-exposition lines, in the
+ * exact format run-via-serve.sh's inline Python wrote (the Fun Stuff
+ * dashboard reads these names and labels). An empty snapshot omits the
+ * top-repo series rather than guessing one.
+ */
+export function renderPrometheus(
+  snapshot: {
+    repos: Array<{ fullName: string; language: string | null; stars: number }>;
+    totalMatching: number;
+  },
+): string {
+  const out: string[] = [];
+  const top = snapshot.repos[0];
+  if (top) {
+    out.push(
+      "# HELP github_trending_top_repo_stars Star count of the top repo in the latest snapshot (recently-created, most-starred proxy for trending), labeled with the repo's name and language.",
+      "# TYPE github_trending_top_repo_stars gauge",
+      `github_trending_top_repo_stars{repo="${promEscape(top.fullName)}",` +
+        `language="${promEscape(top.language ?? "")}"} ${top.stars}`,
+    );
+  }
+  out.push(
+    "# HELP github_trending_total_matching Total repos GitHub reports matching the snapshot query, not just the ones returned.",
+    "# TYPE github_trending_total_matching gauge",
+    `github_trending_total_matching ${snapshot.totalMatching}`,
+  );
+  return out.join("\n") + "\n";
 }
 
 /** Model definition for `@aaronge/github-trending`. */
@@ -199,6 +242,42 @@ export const model = {
           capturedAt: new Date().toISOString(),
         });
         return { dataHandles: [handle] };
+      },
+    },
+    exportMetrics: {
+      description:
+        "Write the latest snapshot's top repo and total match count as a " +
+        "Prometheus textfile-collector file. Written atomically (tmp file + " +
+        "rename) since node_exporter may be reading the directory " +
+        "concurrently. Throws if there is no snapshot yet, leaving any " +
+        "existing file alone. Writes no swamp data.",
+      arguments: z.object({
+        path: z.string().default(DEFAULT_PROM_PATH).describe(
+          "Destination .prom file inside node_exporter's textfile directory.",
+        ),
+      }),
+      execute: async (args: { path: string }, context: MethodContext) => {
+        const raw = await context.readResource("trending");
+        const parsed = TrendingSchema.safeParse(raw);
+        if (!parsed.success) {
+          throw new Error(
+            "No valid trending snapshot to export — run snapshot first.",
+          );
+        }
+        const body = renderPrometheus(parsed.data);
+        const dir = args.path.slice(0, args.path.lastIndexOf("/")) || ".";
+        const base = args.path.slice(args.path.lastIndexOf("/") + 1);
+        const tmp = await Deno.makeTempFile({ dir, prefix: `.${base}.` });
+        try {
+          await Deno.writeTextFile(tmp, body);
+          await Deno.chmod(tmp, 0o644);
+          await Deno.rename(tmp, args.path);
+        } catch (err) {
+          await Deno.remove(tmp).catch(() => {});
+          throw err;
+        }
+        context.logger.info("Wrote {path}", { path: args.path });
+        return { dataHandles: [] };
       },
     },
   },

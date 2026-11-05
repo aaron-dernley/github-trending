@@ -1,0 +1,46 @@
+id: c72c40cf-1136-4c57-91e9-f9e34f4cb3f1
+name: "@aaronge/github-trending"
+description: >-
+  Takes a fresh trending snapshot from GitHub's official search API, then
+  exports the top repo and total match count as a Prometheus textfile
+  metric for the Fun Stuff dashboard. Ships in the package and is
+  scheduled by `swamp serve` through trigger.schedule — every 3 hours at
+  :20, well inside the unauthenticated search rate limit. This replaces
+  the systemd timer + run-via-serve.sh, which is now legacy. The export
+  job runs only after a successful snapshot, as the wrapper did (set -e):
+  a failed fetch leaves the previous file, and fleet-health's freshness
+  check notices if that goes on too long.
+version: 1
+tags: {}
+trigger:
+  schedule: "20 */3 * * *"
+jobs:
+  - name: snapshot
+    description: Fetch a fresh trending snapshot.
+    steps:
+      - name: snapshot
+        task:
+          type: model_method
+          modelIdOrName: daily
+          methodName: snapshot
+        dependsOn: []
+        weight: 0
+        allowFailure: false
+    dependsOn: []
+    weight: 0
+  - name: export
+    description: Write /var/lib/prometheus/node-exporter/github-trending.prom.
+    dependsOn:
+      - job: snapshot
+        condition:
+          type: succeeded
+    steps:
+      - name: exportMetrics
+        task:
+          type: model_method
+          modelIdOrName: daily
+          methodName: exportMetrics
+        dependsOn: []
+        weight: 0
+        allowFailure: false
+    weight: 0

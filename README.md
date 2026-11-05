@@ -53,9 +53,33 @@ unauthenticated, 30/minute with any token. Polling a few times a day is
 plenty for "what's trending" — there's no reason to run this every
 minute.
 
+- **`exportMetrics`** — writes the latest snapshot's top repo (labeled
+  with its name and language) and total match count as a Prometheus
+  textfile-collector file, `/var/lib/prometheus/node-exporter/github-trending.prom`
+  by default (`--input path=...` to change it). Written atomically (tmp
+  file + rename). Throws if there's no snapshot yet. Writes no swamp data.
+
 ## Workflow
 
-None bundled. Run `snapshot` on whatever cadence suits you.
+The `@aaronge/github-trending` workflow ships in the package, so
+`swamp extension pull @aaronge/github-trending` brings it along. It carries
+its own `trigger.schedule` (`20 */3 * * *`), so a running `swamp serve`
+takes a snapshot every 3 hours and then runs `exportMetrics`. The export
+only runs after a successful snapshot.
+
+The consuming repo needs a `daily` model instance:
+
+```bash
+swamp model create @aaronge/github-trending daily
+swamp workflow run @aaronge/github-trending   # one manual run
+```
+
+To change the cadence without editing the package:
+`swamp workflow trigger set @aaronge/github-trending --schedule "20 */6 * * *"`.
+
+`run-via-serve.sh` is legacy: it ran `snapshot` from a systemd timer
+through a throwaway `swamp serve`, then wrote the textfile with inline
+Python. It's kept for reference only.
 
 ## License
 

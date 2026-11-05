@@ -8,6 +8,7 @@ import {
   formatSearchDate,
   model,
   parseSearchResponse,
+  renderPrometheus,
 } from "./github_trending.ts";
 
 function asContext<T>(context: unknown): T {
@@ -196,4 +197,30 @@ Deno.test("snapshot records the language filter when one is set", async () => {
 
   const data = getWrittenResources()[0].data as { language: string | null };
   assertEquals(data.language, "rust");
+});
+
+Deno.test("renderPrometheus: matches the old textfile format", () => {
+  assertEquals(
+    renderPrometheus({
+      repos: [{ fullName: "a/b", language: null, stars: 42 }],
+      totalMatching: 7,
+    }),
+    "# HELP github_trending_top_repo_stars Star count of the top repo in the latest snapshot (recently-created, most-starred proxy for trending), labeled with the repo's name and language.\n" +
+      "# TYPE github_trending_top_repo_stars gauge\n" +
+      'github_trending_top_repo_stars{repo="a/b",language=""} 42\n' +
+      "# HELP github_trending_total_matching Total repos GitHub reports matching the snapshot query, not just the ones returned.\n" +
+      "# TYPE github_trending_total_matching gauge\n" +
+      "github_trending_total_matching 7\n",
+  );
+});
+
+Deno.test("renderPrometheus: escapes label values, omits top repo when empty", () => {
+  const text = renderPrometheus({
+    repos: [{ fullName: 'x/"y"', language: "C\\D", stars: 1 }],
+    totalMatching: 1,
+  });
+  assert(text.includes('repo="x/\\"y\\"",language="C\\\\D"'));
+  const empty = renderPrometheus({ repos: [], totalMatching: 0 });
+  assert(!empty.includes("top_repo_stars"));
+  assert(empty.endsWith("github_trending_total_matching 0\n"));
 });
