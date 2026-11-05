@@ -1,6 +1,6 @@
 manifestVersion: 1
 name: "@aaronge/github-trending"
-version: "2026.11.05.1"
+version: "2026.11.05.2"
 description: "Snapshots 'trending' GitHub repos using only the official Search API (recently-created, most-starred) -- an honest, stable proxy that doesn't scrape github.com/trending's unstable HTML."
 
 repository: https://github.com/aaron-dernley/github-trending

@@ -148,8 +148,8 @@ function promEscape(value: string): string {
 
 /**
  * Render a `trending` snapshot as Prometheus text-exposition lines, in the
- * exact format run-via-serve.sh's inline Python wrote (the Fun Stuff
- * dashboard reads these names and labels). An empty snapshot omits the
+ * exact format the removed run-via-serve.sh wrapper's inline Python wrote
+ * (the Fun Stuff dashboard reads these names and labels). An empty snapshot omits the
  * top-repo series rather than guessing one.
  */
 export function renderPrometheus(

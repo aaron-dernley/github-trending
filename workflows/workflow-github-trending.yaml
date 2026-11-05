@@ -5,9 +5,10 @@ description: >-
   exports the top repo and total match count as a Prometheus textfile
   metric for the Fun Stuff dashboard. Ships in the package and is
   scheduled by `swamp serve` through trigger.schedule — every 3 hours at
-  :20, well inside the unauthenticated search rate limit. This replaces
-  the systemd timer + run-via-serve.sh, which is now legacy. The export
-  job runs only after a successful snapshot, as the wrapper did (set -e):
+  :20, well inside the unauthenticated search rate limit. It replaced a
+  systemd timer + run-via-serve.sh wrapper, both removed on 2026-11-05.
+  The export job runs only after a successful snapshot, as the wrapper did
+  (set -e):
   a failed fetch leaves the previous file, and fleet-health's freshness
   check notices if that goes on too long.
 version: 1
